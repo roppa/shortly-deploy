@@ -6,10 +6,6 @@
   "repository": "",
   "license": "Proprietary",
   "private": false,
-  "scripts": {
-    "start": "./node_modules/.bin/nodemon --ignore node_modules server.js",
-    "test": "node server.js & ./node_modules/.bin/mocha --bail --reporter nyan test/ServerSpec.js; pkill -n node;"
-  },
   "dependencies": {
     "bcrypt-nodejs": "0.0.3",
     "bluebird": "1.0.8",

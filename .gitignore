@@ -5,6 +5,7 @@ azure.err
 iisnode.yml
 
 /node_modules
+/public/js/*
 
 # Icon must ends with two \r.
 Icon

@@ -1,45 +1,89 @@
-var Bookshelf = require('bookshelf');
 var path = require('path');
+var mongoose = require('mongoose');
+var path = require('path');
+var bcrypt = require('bcrypt-nodejs');
+var crypto = require('crypto');
 
-var db = Bookshelf.initialize({
-  client: 'sqlite3',
-  connection: {
-    host: '127.0.0.1',
-    user: 'your_database_user',
-    password: 'password',
-    database: 'shortlydb',
-    charset: 'utf8',
-    filename: path.join(__dirname, '../db/shortly.sqlite')
-  }
+var connectionString;
+var Schema = mongoose.Schema;
+var ObjectId = Schema.ObjectId;
+var db;
+
+if (process.env.NODE_ENV === 'production') {
+  connectionString = process.env.CUSTOMCONNSTR_MONGOLAB_URI;
+} else {
+  connectionString = "mongodb://localhost/shortly";
+}
+
+mongoose.connect(connectionString);
+
+db = mongoose.connection;
+
+db.on('error', console.error.bind(console, 'connection error:'));
+
+db.once('open', function (callback) {
+  console.log("Connected to database");
 });
 
-db.knex.schema.hasTable('urls').then(function(exists) {
-  if (!exists) {
-    db.knex.schema.createTable('urls', function (link) {
-      link.increments('id').primary();
-      link.string('url', 255);
-      link.string('base_url', 255);
-      link.string('code', 100);
-      link.string('title', 255);
-      link.integer('visits');
-      link.timestamps();
-    }).then(function (table) {
-      console.log('Created Table', table);
-    });
-  }
+/****************************************************************
+* Schemas
+****************************************************************/
+
+/* Users */
+
+db.Users = new Schema({
+  username: { type: String, required: true, index: { unique: true } },
+  password: String
 });
 
-db.knex.schema.hasTable('users').then(function(exists) {
-  if (!exists) {
-    db.knex.schema.createTable('users', function (user) {
-      user.increments('id').primary();
-      user.string('username', 100).unique();
-      user.string('password', 100);
-      user.timestamps();
-    }).then(function (table) {
-      console.log('Created Table', table);
-    });
+db.Users.pre('save', true, function (next, done) {
+
+  if (!this.isModified('password')) {
+    next();
+    done();
   }
+
+  bcrypt.hash(this.password, null, null, function(err, hash) {
+      if (err) {
+        next(err);
+        return done();
+      }
+      this.password = hash;
+      next();
+      done();
+    }.bind(this));
+
 });
+
+db.Users.methods.comparePassword = function (attemptedPassword, callback) {
+  bcrypt.compare(attemptedPassword, this.password, function(err, isMatch) {
+    callback(err, isMatch);
+  });
+};
+
+/* Links */
+
+db.Links = new Schema({
+  visits : { type : Number, default : 0 },
+  code: String,
+  url: String,
+  base_url: String,
+  createdDate: { type: Date, default: Date.now }
+});
+
+db.Links.pre('save', true, function (next, done) {
+  var shasum = crypto.createHash('sha1');
+  shasum.update(this.url);
+  this.code = shasum.digest('hex').slice(0, 5);
+  next();
+  done();
+});
+
+/****************************************************************
+* Models
+****************************************************************/
+
+db.User = db.model('User', db.Users);
+db.Link = db.model('Link', db.Links);
 
 module.exports = db;
